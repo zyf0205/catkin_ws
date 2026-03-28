@@ -1,0 +1,42 @@
+<launch>
+  <arg name="odom_topic" value="/Odometry" />
+  <arg name="cloud_topic" value="/cloud_registered_body" />
+
+  <!-- 1. 调用参数文件 -->
+  <include file="$(find ego_planner)/launch/advanced_param.xml">
+    <arg name="map_size_x_" value="40.0"/>
+    <arg name="map_size_y_" value="40.0"/>
+    <arg name="map_size_z_" value="3.0"/>
+    <arg name="odometry_topic" value="$(arg odom_topic)"/>
+    <arg name="cloud_topic" value="$(arg cloud_topic)"/>
+
+    <arg name="cx" value="0.0"/><arg name="cy" value="0.0"/><arg name="fx" value="1.0"/><arg name="fy" value="1.0"/>
+    <arg name="camera_pose_topic" value="unused"/><arg name="depth_topic" value="unused"/>
+
+    <arg name="max_vel" value="1.5" />
+    <arg name="max_acc" value="2.0" />
+    <arg name="planning_horizon" value="7.5" /> 
+    
+    <!-- 设置为 1: 才会等待 RViz 2D Nav Goal -->
+    <arg name="flight_type" value="1" />
+    
+    <arg name="point_num" value="1" />
+    <arg name="point0_x" value="0.0" /><arg name="point0_y" value="0.0" /><arg name="point0_z" value="1.0" />
+  </include>
+
+  <!-- 2. 轨迹指令转换 -->
+  <node pkg="ego_planner" name="traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="/planning/pos_cmd"/>
+    <remap from="/odom_world" to="$(arg odom_topic)"/>
+  </node>
+
+  <!-- 3. 目标点中转站 -->
+  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
+    <remap from="~odom" to="$(arg odom_topic)"/>        
+    <remap from="~goal" to="/move_base_simple/goal"/>
+    <!-- 这里输出的话题必须和上面 advanced_param.xml 里的 remap 一致 -->
+    <remap from="~waypoints" to="/waypoint_generator/waypoints"/>
+    <param name="waypoint_type" value="manual-lonely-waypoint"/>    
+  </node>
+
+</launch>
