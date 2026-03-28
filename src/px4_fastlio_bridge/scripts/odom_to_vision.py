@@ -17,6 +17,9 @@ class OdomToVision:
         rospy.loginfo("Bridge Node Started: Forwarding /Odometry to /mavros/vision_pose/pose")
 
     def odom_callback(self, msg):
+        if rospy.is_shutdown():
+            return
+        
         vision_msg = PoseStamped()
         
         # 1. 对齐时间戳 (非常关键，PX4 EKF2 严格依赖时间戳，建议用当前ROS时间覆盖)
