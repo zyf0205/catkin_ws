@@ -74,8 +74,8 @@ Visualization Manager:
         - Alpha: 0.10000000149011612
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 7.834993839263916
-            Min Value: -0.15219683945178986
+            Max Value: 7.843642234802246
+            Min Value: -0.18743681907653809
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -167,8 +167,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.8499999046325684
-        Min Value: -0.05000000074505806
+        Max Value: 1.9500000476837158
+        Min Value: 0.44999998807907104
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -182,7 +182,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: PointCloud2
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1000
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.10000000149011612
@@ -260,7 +260,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 46.8575553894043
+      Distance: 18.211265563964844
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -268,17 +268,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -0.948444128036499
-        Y: -6.979982852935791
-        Z: -1.0521316528320312
+        X: 13.645755767822266
+        Y: 0.16993899643421173
+        Z: 0.1622501164674759
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8697964549064636
+      Pitch: 0.43979737162590027
       Target Frame: global
-      Yaw: 2.962205410003662
+      Yaw: 4.830389022827148
     Saved: ~
 Window Geometry:
   Displays:
@@ -296,5 +296,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1917
-  X: 979
-  Y: 303
+  X: 124
+  Y: 476
