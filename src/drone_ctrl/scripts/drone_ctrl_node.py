@@ -9,32 +9,37 @@ from mavros_msgs.srv import SetMode, CommandBool
 from mavros_msgs.msg import PositionTarget
 from nav_msgs.msg import Odometry
 
+def get_yaw(q):
+    """从四元数提取偏航角"""
+    return math.atan2(2*(q.w*q.z + q.x*q.y), 1-2*(q.y**2 + q.z**2))
+
+def wrap_angle(angle):
+    """将角度限制在 -pi 到 pi 之间"""
+    return (angle + np.pi) % (2 * np.pi) - np.pi
+
 class DroneController:
     def __init__(self):
         rospy.init_node('drone_ctrl_node')
         self.takeoff_height = rospy.get_param("~takeoff_height", 1.2)
 
-        # 状态变量
         self.lio_pos = np.zeros(3)
         self.lio_yaw = 0.0
         self.ego_cmd = None
         self.last_ego_time = rospy.Time(0)
 
-        # 发布与订阅
         self.raw_pub = rospy.Publisher('/mavros/setpoint_raw/local', PositionTarget, queue_size=10)
         rospy.Subscriber('/Odometry', Odometry, self.odom_cb)
         rospy.Subscriber('/planning/pos_cmd', PositionCommand, self.ego_cb)
 
     def odom_cb(self, msg):
-        p, q = msg.pose.pose.position, msg.pose.pose.orientation
+        p = msg.pose.pose.position
         self.lio_pos = np.array([p.x, p.y, p.z])
-        self.lio_yaw = math.atan2(2*(q.w*q.z + q.x*q.y), 1-2*(q.y**2 + q.z**2))
+        self.lio_yaw = get_yaw(msg.pose.pose.orientation)
 
     def ego_cb(self, msg):
         self.ego_cmd, self.last_ego_time = msg, rospy.Time.now()
 
     def send_pos(self, pos, yaw, vel=None):
-        """发送位置指令（MAVROS坐标系）"""
         msg = PositionTarget(coordinate_frame=PositionTarget.FRAME_LOCAL_NED, yaw=yaw)
         msg.header.stamp = rospy.Time.now()
         msg.position.x, msg.position.y, msg.position.z = pos
@@ -42,61 +47,62 @@ class DroneController:
             msg.velocity.x, msg.velocity.y, msg.velocity.z = vel
             msg.type_mask = 2496 # 忽略加速度、偏航率
         else:
-            msg.type_mask = 2552 # 忽略速度、加速度、偏航率
+            msg.type_mask = 2552 # 绝对静止悬停
         self.raw_pub.publish(msg)
 
     def run(self):
         rospy.loginfo("Waiting for LIO and MAVROS...")
-        try: # 阻塞等待单帧数据进行初始化，省去循环标志位
+        try:
             odom = rospy.wait_for_message('/Odometry', Odometry, timeout=15)
             mav = rospy.wait_for_message('/mavros/local_position/pose', PoseStamped, timeout=15)
         except rospy.ROSException:
-            rospy.logerr("Timeout waiting for sensor data.")
             return
 
-        # 1. 计算坐标偏移 (只算一次，无需持续订阅mav_pos)
-        self.odom_cb(odom) # 手动调一次更新初始位置
+        self.odom_cb(odom)
         mav_pos = np.array([mav.pose.position.x, mav.pose.position.y, mav.pose.position.z])
-        offset = mav_pos - self.lio_pos
+        mav_yaw = get_yaw(mav.pose.orientation)
         
-        # 2. 设置起飞点
-        hover_pos = self.lio_pos + [0, 0, self.takeoff_height]
-        hover_yaw = self.lio_yaw
-        rospy.loginfo(f"Offset: {np.round(offset, 2)} | Takeoff Target: {np.round(hover_pos, 2)}")
+        # ✅ 核心修复：同时计算 XYZ 偏移 和 YAW 角度偏移
+        offset = mav_pos - self.lio_pos
+        yaw_offset = wrap_angle(mav_yaw - self.lio_yaw) 
+        
+        target_pos = self.lio_pos + [0, 0, self.takeoff_height] + offset
+        target_yaw = wrap_angle(self.lio_yaw + yaw_offset)
 
-        # 3. 预发Setpoint与解锁 (连发100次，耗时2秒)
+        rospy.loginfo(f"XYZ Offset: {np.round(offset, 2)} | Yaw Offset: {yaw_offset:.2f} rad")
+
         for _ in range(100):
-            self.send_pos(hover_pos + offset, hover_yaw)
+            self.send_pos(target_pos, target_yaw)
             rospy.sleep(0.02)
             
         rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)(True)
         rospy.ServiceProxy('/mavros/set_mode', SetMode)(custom_mode='OFFBOARD')
         rospy.loginfo("OFFBOARD armed")
 
-        # 4. 主循环
         rate = rospy.Rate(50)
-        was_ego, cnt = False, 0
+        cnt = 0
 
         while not rospy.is_shutdown():
-            # 判断EGO指令是否超时 (<0.5s)
             is_ego = self.ego_cmd and (rospy.Time.now() - self.last_ego_time).to_sec() < 0.5
             
             if is_ego:
                 c = self.ego_cmd
                 pos = np.array([c.position.x, c.position.y, c.position.z]) + offset
                 vel = np.array([c.velocity.x, c.velocity.y, c.velocity.z])
-                self.send_pos(pos, c.yaw, vel)
-                was_ego = True
-            else:
-                if was_ego: # 刚停下，锁定当前位置
-                    hover_pos, hover_yaw = self.lio_pos.copy(), self.lio_yaw
-                    rospy.loginfo(f"EGO stopped, hover locked at: {np.round(hover_pos, 2)}")
-                    was_ego = False
-                self.send_pos(hover_pos + offset, hover_yaw)
+                
+                # ✅ 目标位置和机头朝向都加上 offset
+                target_pos = pos
+                target_yaw = wrap_angle(c.yaw + yaw_offset)
 
-            # 打印日志 (1Hz)
+                if np.linalg.norm(vel) < 0.05:
+                    self.send_pos(target_pos, target_yaw)
+                else:
+                    self.send_pos(target_pos, target_yaw, vel)
+            else:
+                self.send_pos(target_pos, target_yaw)
+
             if cnt % 50 == 0:
-                rospy.loginfo(f"EGO:{is_ego} | LIO:{np.round(self.lio_pos, 2)} | Hover:{np.round(hover_pos, 2)}")
+                rospy.loginfo(f"Target XYZ:[{target_pos[0]:.2f}, {target_pos[1]:.2f}, {target_pos[2]:.2f}] Yaw:{target_yaw:.2f}")
             cnt += 1
             rate.sleep()
 
