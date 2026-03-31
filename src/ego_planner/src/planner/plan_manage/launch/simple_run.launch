@@ -5,7 +5,7 @@
   <include file="$(find ego_planner)/launch/advanced_param.xml">
     <arg name="map_size_x_" value="40.0"/>
     <arg name="map_size_y_" value="40.0"/>
-    <arg name="map_size_z_" value="10.0"/>
+    <arg name="map_size_z_" value="5.0"/>
     
     <arg name="odometry_topic" value="$(arg odom_topic)"/>
     <arg name="cloud_topic" value="$(arg cloud_topic)"/>
@@ -30,16 +30,33 @@
     <arg name="point0_z" value="1.0" />
   </include>
 
+  <!-- ✅ traj_server: 将B样条轨迹解算为位置/速度/加速度指令 -->
   <node pkg="ego_planner" name="traj_server" type="traj_server" output="screen">
     <remap from="/position_cmd" to="/planning/pos_cmd"/>
     <remap from="/odom_world" to="$(arg odom_topic)"/>
     <param name="traj_server/time_forward" value="1.0" type="double"/>
   </node>
 
+  <!-- ✅ waypoint_generator: 接收Rviz的2D Nav Goal -->
   <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
     <remap from="~odom" to="$(arg odom_topic)"/>        
     <remap from="~goal" to="/move_base_simple/goal"/>
     <remap from="~waypoints" to="/waypoint_generator/waypoints"/>
     <param name="waypoint_type" value="manual-lonely-waypoint"/>    
   </node>
+
+  <!-- ✅ 【新增】地面点云过滤节点 -->
+  <node pkg="ego_planner" name="cloud_filter" type="cloud_filter_node" output="screen"
+        if="false">
+    <!-- 如果你有这个节点可以启用，否则用下面的Python过滤 -->
+  </node>
+
+  <!-- ✅ 【新增】Rviz可视化配置 -->
+  <node pkg="rviz" name="rviz" type="rviz" 
+        args="-d $(find ego_planner)/launch/ego_lidar.rviz"
+        output="screen"
+        if="false">
+    <!-- 设为true可自动启动Rviz -->
+  </node>
+
 </launch>

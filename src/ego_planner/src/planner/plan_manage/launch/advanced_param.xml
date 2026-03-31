@@ -30,8 +30,10 @@
 
     <!-- ========== FSM ========== -->
     <param name="fsm/flight_type" value="$(arg flight_type)" type="int"/>
-    <param name="fsm/thresh_replan_time" value="1.0" type="double"/>
-    <param name="fsm/thresh_no_replan_meter" value="1.0" type="double"/>
+    <!-- ✅ 降低重规划频率阈值，减少到达目标点后的无意义重规划 -->
+    <param name="fsm/thresh_replan_time" value="1.5" type="double"/>
+    <!-- ✅ 增大"不需要重规划"的距离阈值：距离目标<此值时不再重规划 -->
+    <param name="fsm/thresh_no_replan_meter" value="1.5" type="double"/>
     <param name="fsm/planning_horizon" value="$(arg planning_horizon)" type="double"/>
     <param name="fsm/planning_horizen_time" value="3.0" type="double"/>
     <param name="fsm/emergency_time_" value="1.0" type="double"/>
@@ -41,25 +43,30 @@
     <param name="fsm/waypoint0_z" value="$(arg point0_z)" type="double"/>
 
     <!-- ========== Grid Map ========== -->
-    <!-- ✅ 分辨率略提高，厚墙体表示更精确 -->
-    <param name="grid_map/resolution" value="0.08" /> 
+    <!-- ✅ 分辨率0.1就够了，0.08太细占CPU -->
+    <param name="grid_map/resolution" value="0.1" /> 
     
     <param name="grid_map/map_size_x" value="$(arg map_size_x_)" /> 
     <param name="grid_map/map_size_y" value="$(arg map_size_y_)" /> 
     <param name="grid_map/map_size_z" value="$(arg map_size_z_)" /> 
     
-    <!-- ✅ 【防擦墙核心1】膨胀半径加大 
-         这个值 = 无人机半径 + 安全裕度
-         比如无人机对角线25cm，安全裕度35cm = 0.6m -->
-    <param name="grid_map/obstacles_inflation" value="0.6" /> 
+    <!-- ✅ 膨胀半径：无人机半径+安全裕度，0.5够用不要太大否则过不了门 -->
+    <param name="grid_map/obstacles_inflation" value="0.35" /> 
     
-    <param name="grid_map/ground_height" value="-0.1"/>
+    <!-- ✅ 【修复地面建图问题 核心1】
+         提高地面过滤高度：低于此高度的点全部丢弃
+         根据你LiDAR安装高度设置，比如LiDAR离地1.0m，设0.3表示过滤0.3m以下 -->
+    <param name="grid_map/ground_height" value="0.3"/>
 
+    <!-- ✅ 【修复地面建图问题 核心2】
+         限制地图最低高度，不建模地面附近 -->
     <param name="grid_map/local_update_range_x" value="6.0" /> 
     <param name="grid_map/local_update_range_y" value="6.0" /> 
-    <param name="grid_map/local_update_range_z" value="4.0" /> 
+    <!-- ✅ Z方向缩小，减少向下建图 -->
+    <param name="grid_map/local_update_range_z" value="3.0" /> 
     
-    <param name="grid_map/min_ray_length" value="0.2"/>
+    <!-- ✅ 最小射线长度加大，过滤机体附近噪点 -->
+    <param name="grid_map/min_ray_length" value="0.3"/>
     <param name="grid_map/max_ray_length" value="8.0"/>
     
     <param name="grid_map/cx" value="$(arg cx)"/>
@@ -67,7 +74,6 @@
     <param name="grid_map/fx" value="$(arg fx)"/>
     <param name="grid_map/fy" value="$(arg fy)"/>
     
-    <!-- ✅ 【防擦墙核心2】提高障碍物置信度，让厚墙更快被确认为障碍 -->
     <param name="grid_map/use_depth_filter" value="true"/>
     <param name="grid_map/p_hit" value="0.73"/>
     <param name="grid_map/p_miss" value="0.27"/>
@@ -78,29 +84,27 @@
     <param name="grid_map/pose_type" value="2"/>
     <param name="grid_map/frame_id" value="camera_init"/>
 
+    <!-- ✅ 【修复地面建图问题 核心3】虚拟地面/天花板 -->
+    <param name="grid_map/virtual_ceil_height" value="3.5"/>
+    <param name="grid_map/virtual_ground_height" value="0.1"/>
+
     <!-- ========== Manager ========== -->
     <param name="manager/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="manager/max_acc" value="$(arg max_acc)" type="double"/>
     <param name="manager/max_jerk" value="4.0" type="double"/>
-    
-    <!-- ✅ 【防擦墙核心3】控制点间距缩小，轨迹在墙边更精细 -->
-    <param name="manager/control_points_distance" value="0.35" type="double"/>
+    <param name="manager/control_points_distance" value="0.4" type="double"/>
     <param name="manager/feasibility_tolerance" value="0.05" type="double"/>
     <param name="manager/planning_horizon" value="$(arg planning_horizon)" type="double"/>
     <param name="manager/use_distinctive_trajs" value="false" type="bool"/>
 
     <!-- ========== Optimization ========== -->
-    <!-- ✅ 【防擦墙核心4】碰撞权重大幅提高 -->
     <param name="optimization/lambda_smooth" value="1.0" type="double"/>
-    <param name="optimization/lambda_collision" value="25.0" type="double"/>
+    <param name="optimization/lambda_collision" value="20.0" type="double"/>
     <param name="optimization/lambda_feasibility" value="0.5" type="double"/>
     <param name="optimization/lambda_fitness" value="1.5" type="double"/>
     
-    <!-- ✅ 【防擦墙核心5】安全距离阈值 
-         dist0 = 在距离障碍物多远时开始施加碰撞惩罚
-         越大 = 轨迹离墙越远
-         建议 >= obstacles_inflation -->
-    <param name="optimization/dist0" value="1.2" type="double"/>
+    <!-- ✅ dist0不要太大，1.2会让轨迹过度远离墙体，0.8足够 -->
+    <param name="optimization/dist0" value="0.8" type="double"/>
     <param name="optimization/swarm_clearance" value="0.5" type="double"/>
     
     <param name="optimization/max_vel" value="$(arg max_vel)" type="double"/>
